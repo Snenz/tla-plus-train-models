@@ -1,5 +1,4 @@
 /.vscode
 *.out
 *.tlc
-*.fp
-*.st
+/examples/*/states
