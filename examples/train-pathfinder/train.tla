@@ -4,9 +4,14 @@ EXTENDS Naturals, FiniteSets
 
 \* TODO: find a better way to define constants
 \* CONSTANTS Sections, Edges, Trains
-Sections == {1, 2, 3}
-Edges == {<<1, 2>>, <<1, 3>>, <<3, 1>>, <<3, 2>>, <<2, 1>>, <<2, 3>>}
-Trains == {<<"A", 1, 3>>, <<"B", 3, 1>>}
+\* T-Ausweichen:
+\* Sections == {1, 2, 3}
+\* Edges == {<<1, 2>>, <<1, 3>>, <<3, 1>>, <<3, 2>>, <<2, 1>>, <<2, 3>>}
+\* Trains == {<<"A", 1, 3>>, <<"B", 3, 1>>}
+\* Ausweichgleis:
+Sections == {1, 2, 3, 4}
+Edges == {<<1, 3>>, <<1, 2>>, <<2, 1>>, <<2, 4>>, <<3, 1>>, <<3, 4>>, <<4, 2>>, <<4, 3>>}
+Trains == {<<"A", 1, 4>>, <<"B", 4, 1>>}
 
 VARIABLES section_occ, train_positions
 
@@ -28,12 +33,9 @@ Next ==
 Init ==
     train_positions = [t \in TrainNames |-> (CHOOSE td \in Trains : td[1] = t)[2]]
     /\ section_occ = [s \in Sections |-> \E tname \in TrainNames: train_positions[tname] = s]
-    
-IsGoalReached ==
-    \A tname \in TrainNames: IsTrainAtDestination(tname)
 
 GoalNotReached ==
-    ~IsGoalReached
+    ~(\A tname \in TrainNames: IsTrainAtDestination(tname))
 
 IsSafe ==
     ~(\E tna, tnb \in TrainNames: tna /= tnb /\ train_positions[tna] = train_positions[tnb])
