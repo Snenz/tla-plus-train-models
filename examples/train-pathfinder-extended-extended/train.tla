@@ -12,7 +12,7 @@ EXTENDS Naturals, FiniteSets, Sequences
 Sections == {1, 2, 3, 4, 5, 6}
 Edges == {<<1, 2>>, <<2, 1>>, <<2, 3>>, <<3, 2>>, <<4, 5>>, <<5, 4>>, <<5, 6>>, <<6, 5>>}
 Intersections == {<<2, 5>>}
-Trains == {<<"A", 1, 3, 1>>, <<"B", 4, 6, 4>>}
+Trains == {<<"A", 1, 3, 1>>, <<"B", 4, 6, 5>>}
 
 CONSTANTS DEST_OFFSET
 VARIABLES section_occ, train_positions, train_stop_index
