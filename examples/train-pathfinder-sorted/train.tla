@@ -8,10 +8,22 @@ EXTENDS Naturals, FiniteSets, Sequences
 CONSTANT DirectedGraph
 
 \* Kreuzung (DirectedGraph = FALSE)
-Sections == {1, 2, 3, 4, 5, 6}
-Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
-Intersections == {{2, 5}}
-Trains == {<<"A", <<1, 3>>>>, <<"B", <<4, 6, 5>>>>}
+\* Sections == {1, 2, 3, 4, 5, 6}
+\* Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
+\* Intersections == {{2, 5}}
+\* Trains == {<<"A", <<1, 3>>>>, <<"B", <<4, 6, 5>>>>}
+
+\* Ausweichen und Hintereinanderreihen (DirectedGraph = FALSE)
+\* Sections == {1, 2, 3, 4, 5}
+\* Edges == {<<1, 2>>, <<2, 4>>, <<2, 3>>, <<3, 4>>, <<5, 4>>}
+\* Intersections == {}
+\* Trains == {<<"A", <<2, 2>>>>, <<"B", <<5, 1>>>>}
+
+\* triple-T (DirectedGraph = FALSE)
+Sections == {1, 2, 3, 4, 5, 6, 7}
+Edges == {<<1, 2>>, <<1, 5>>, <<2, 5>>, <<2, 6>>, <<2, 3>>, <<3, 6>>, <<3, 7>>, <<3, 4>>, <<4, 7>>}
+Intersections == {}
+Trains == {<<"A", <<1, 6, 1>>>>, <<"B", <<4, 6, 4>>>>, <<"C", <<6, 6>>>>}
 
 \* train_routes acts as a queue of destinations, last one stays on queue though
 VARIABLES section_occ, train_positions, train_routes
@@ -32,7 +44,8 @@ DirectionCorrectedEdges ==
     IF DirectedGraph THEN Edges ELSE Edges \union {<<b, a>> : <<a, b>> \in Edges}
 
 DriveTrain(trainname) ==
-    /\ ~IsTrainAtDestination(trainname)
+    \* not necessary (?) and keeps some scenarios from being solved
+    \* /\ ~IsTrainAtDestination(trainname)
     /\ \E <<current, next>> \in DirectionCorrectedEdges: (
             /\ section_occ[current] = TRUE /\ section_occ[next] = FALSE /\ train_positions[trainname] = current
             /\ ~HasOccupiedIntersection(next)
@@ -40,7 +53,7 @@ DriveTrain(trainname) ==
             /\ section_occ' = [section_occ EXCEPT ![current] = FALSE, ![next] = TRUE]
         )
     /\ (
-            (train_positions[trainname] = Head(train_routes[trainname])
+            (Len(train_routes[trainname]) > 1 /\ train_positions[trainname] = Head(train_routes[trainname])
             /\ train_routes' = [train_routes EXCEPT ![trainname] = Tail(train_routes[trainname])])
             \/ UNCHANGED train_routes
         )
