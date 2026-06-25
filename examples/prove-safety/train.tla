@@ -1,6 +1,8 @@
 ------------------------------- MODULE train -------------------------------
 
-EXTENDS Naturals, FiniteSets
+\* idea: first an action finds a valid starting point, then all possible train movements are executed
+
+EXTENDS Naturals, FiniteSets, Sequences
 
 \* if this is TRUE, we assume Edges is given in directed graph form,
 \* so any Edge <<a, b>> can only be traveled along from a to b.
@@ -9,25 +11,33 @@ CONSTANT DirectedGraph
 CONSTANT NumTrains
 
 \* Kreuzung (DirectedGraph = FALSE)
-\* Sections == {1, 2, 3, 4, 5, 6}
-\* Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
-\* Intersections == {{2, 5}}
-\* Trains == {<<"A", <<1, 3>>>>, <<"B", <<4, 6, 5>>>>}
+Sections == {1, 2, 3, 4, 5, 6}
+Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
+Intersections == {{2, 5}}
 
-\* Ausweichen und Hintereinanderreihen (DirectedGraph = FALSE)
-\* Sections == {1, 2, 3, 4, 5}
-\* Edges == {<<1, 2>>, <<2, 4>>, <<2, 3>>, <<3, 4>>, <<5, 4>>}
-\* Intersections == {}
-\* Trains == {<<"A", <<2, 2>>>>, <<"B", <<5, 1>>>>}
+Phases == {"finding arrangement", "driving trains"}
 
-\* triple-T (DirectedGraph = FALSE)
-Sections == {1, 2, 3, 4, 5, 6, 7}
-Edges == {<<1, 2>>, <<1, 5>>, <<2, 5>>, <<2, 6>>, <<2, 3>>, <<3, 6>>, <<3, 7>>, <<3, 4>>, <<4, 7>>}
-Intersections == {}
+VARIABLES phase, section_occ, trains
 
-TrainIds == 1..NumTrains
+IsSafe(mytrains, my_occ) ==
+    /\ ~(\E ta, tb \in DOMAIN mytrains: ta /= tb /\ mytrains[ta].position = mytrains[tb].position)
+    /\ \A int \in Intersections: Cardinality({t \in DOMAIN mytrains: mytrains[t].position \in int}) <= 1
+    /\ \A s \in Sections: ((\E t \in DOMAIN mytrains: mytrains[t].position = s) <=> my_occ[s] = TRUE)
+    
+AllTrains ==
+    [1..NumTrains -> [position: Sections]] \* all mappings from 1..NumTrains to train records that hold a position
+                                           \* that is a section
 
-VARIABLES section_occ, trains
+AllOccupations ==
+    [Sections -> BOOLEAN] \* all mappings between any Section to any Boolean
+
+FindStartingArrangement ==
+    /\ phase = "finding arrangement"
+    /\ \E t \in AllTrains, o \in AllOccupations:
+        /\ IsSafe(t, o)
+        /\ trains' = t
+        /\ section_occ' = o
+        /\ phase' = "driving trains"
 
 \* checks if the section is part of any intersection and if that intersection already has a train on it
 HasOccupiedIntersection(section) ==
@@ -38,23 +48,31 @@ HasOccupiedIntersection(section) ==
 DirectionCorrectedEdges ==
     IF DirectedGraph THEN Edges ELSE Edges \union {<<b, a>> : <<a, b>> \in Edges}
 
-DriveTrain(train) ==
-    /\ \E <<current, next>> \in DirectionCorrectedEdges: (
-            /\ section_occ[current] = TRUE /\ section_occ[next] = FALSE /\ train.position = current
-            /\ ~HasOccupiedIntersection(next)
-            /\ train' = [train EXCEPT !.position = next]
-            /\ section_occ' = [section_occ EXCEPT ![current] = FALSE, ![next] = TRUE]
-        )
+DriveTrain ==
+    /\ phase = "driving trains"
+    /\ \E ti \in DOMAIN trains:
+        /\ \E <<current, next>> \in DirectionCorrectedEdges: (
+                /\ section_occ[current] = TRUE /\ section_occ[next] = FALSE /\ trains[ti].position = current
+                /\ ~HasOccupiedIntersection(next)
+                /\ trains' = [trains EXCEPT ![ti] = [trains[ti] EXCEPT !.position = next]]
+                /\ section_occ' = [section_occ EXCEPT ![current] = FALSE, ![next] = TRUE]
+            )
+    /\ UNCHANGED phase
    
 Next ==
-    /\ \E i \in TrainIds: DriveTrain(trains[i])
+    FindStartingArrangement \/ DriveTrain
    
 Init ==
-    /\ trains = [i \in TrainIds |-> [position |-> 1]]
-    /\ section_occ = [s \in Sections |-> \E i \in TrainIds: trains[i].position = s]
+    /\ phase = "finding arrangement"
+    /\ trains = <<>>
+    /\ section_occ = [s \in Sections |-> FALSE]
 
-IsSafe ==
-    /\ ~(\E ta, tb \in TrainIds: ta /= tb /\ trains[ta].position = trains[tb].position)
-    /\ \A intersection \in Intersections: Cardinality({s \in intersection: section_occ[s] = TRUE}) <= 1
+IsSafeInvariant ==
+    IsSafe(trains, section_occ)
+
+TypeInvariant ==
+    /\ phase \in Phases
+    /\ section_occ \in AllOccupations
+    /\ Len(trains) = 0 \/ trains \in AllTrains
 
 =============================================================================
