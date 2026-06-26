@@ -15,6 +15,11 @@ Sections == {1, 2, 3, 4, 5, 6}
 Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
 Intersections == {{2, 5}}
 
+\* Ausweichen (DirectedGraph = FALSE)
+\* Sections == {1, 2, 3}
+\* Edges == {<<1, 2>>, <<1, 3>>, <<2, 3>>}
+\* Intersections == {}
+
 Phases == {"finding arrangement", "driving trains"}
 
 VARIABLES phase, section_occ, trains
@@ -82,6 +87,13 @@ Init ==
     /\ trains = <<>>
     /\ section_occ = [s \in Sections |-> FALSE]
 
+Fairness ==
+    \* i would like to use DOMAIN trains here as well to keep flexibility but tla+ doesnt allow it
+    /\ \A ti \in 1..NumTrains: WF_vars(DriveTrain(ti))
+
+Spec ==
+    Init /\ [][Next]_vars /\ Fairness
+
 IsSafeInvariant ==
     IsSafe(trains, section_occ)
 
@@ -92,9 +104,5 @@ TypeInvariant ==
 
 AllReachDestinationEventually ==
     /\ []<>(\A i \in DOMAIN trains: trains[i].position = trains[i].destination)
-
-Fairness ==
-    \* i would like to use DOMAIN trains here as well to keep flexibility but tla+ doesnt allow it
-    /\ \A ti \in 1..NumTrains: WF_vars(DriveTrain(ti))
 
 =============================================================================
