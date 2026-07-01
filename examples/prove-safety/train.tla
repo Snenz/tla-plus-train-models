@@ -43,12 +43,13 @@ DirectionCorrectedEdges ==
 PathExists(start, destination) ==
     LET RECURSIVE Reach(_)
         Reach(reachableset) ==
-            LET neighbours == {s \in Sections: (\E <<a, b>> \in DirectionCorrectedEdges: a \in reachableset /\ s = b)}
+            LET
+                neighbours == {s \in Sections: (\E <<a, b>> \in DirectionCorrectedEdges: a \in reachableset /\ s = b)}
+                newneighbours == neighbours \ reachableset
             IN 
-                LET newrs == reachableset \union neighbours
-                IN
-                    IF newrs = reachableset THEN reachableset \* done!
-                    ELSE Reach(newrs)
+                \* no new neighbours -> we exhausted the entire reachable part of the graph
+                IF Cardinality(newneighbours) = 0 THEN reachableset
+                ELSE Reach(reachableset \union newneighbours)
     IN destination \in Reach({start})
 
 FindStartingArrangement ==
