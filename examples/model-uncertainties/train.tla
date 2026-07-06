@@ -2,13 +2,15 @@
 
 \* idea: first an action finds a valid starting point, then all possible train movements are executed
 
-EXTENDS Naturals, FiniteSets, Sequences
+EXTENDS Naturals, FiniteSets, Sequences, TLC
 
 \* if this is TRUE, we assume Edges is given in directed graph form,
 \* so any Edge <<a, b>> can only be traveled along from a to b.
 \* when FALSE, we create an additional opposite edge for every existing one
 CONSTANT DirectedGraph
+
 CONSTANT NumTrains
+CONSTANT MaxLongitudinalShift \* worst-case longitudinal error
 
 \* Kreuzung (DirectedGraph = FALSE)
 Sections == {1, 2, 3, 4, 5, 6}
@@ -68,10 +70,15 @@ DriveTrain(ti) ==
     /\ UNCHANGED <<phase, green_signals>>
 
 \* This defines the rules based on which signals are turned green. For this, we only have per-section
-\* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally
-\* or be outdated.
+\* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally.
 SignalRules(measurements) ==
-    {}
+    \* TODO: finish this implementation of the stupidist rule for MaxLongitudinalShift = 0
+    {<<a, b>> \in DirectionCorrectedEdges:
+        /\ measurements[a] /\ ~measurements[b] \* turn signals from a → b green if a is occupied and b is not
+        /\ ~\E int \in Intersections: \* signal only green if it doesnt point into an occupied intersection
+            /\ b \in int
+            /\ \E s \in int: measurements[s]
+    }
     \* returns list of green signals
 
 \* based on the current positions of all trains, this returns every set of mappings [Sections -> BOOLEAN]
@@ -84,7 +91,7 @@ AllMeasurableSensorValues ==
             \* that corresponds to vals?
             /\ \E tp \in [TrainIDs -> Sections]:
                 \* by tp transmuted positions must still be in the specified radius around the actual position:
-                /\ \A ti \in TrainIDs: tp[ti] \in FindNeighboursOf(trains[ti].position, 2)
+                /\ \A ti \in TrainIDs: tp[ti] \in FindNeighboursOf(trains[ti].position, MaxLongitudinalShift)
                 \* create the mapping from Sections -> BOOLEAN based on tp and check if it is vals
                 /\ [s \in Sections |-> \E ti \in DOMAIN trains: tp[ti] = s] = vals
     IN
@@ -128,6 +135,7 @@ TypeInvariant ==
     /\ Len(trains) = 0 \/ trains \in AllTrains
     /\ green_signals \subseteq DirectionCorrectedEdges
 
+\* TODO: add liveness property that somehow checks if every train can reach every section
 NoTrainStuck ==
     \* we need to include the phase here because otherwise we try to access trains before populating it
     \A ti \in TrainIDs: <>(phase = "driving trains" /\ trains[ti].position /= trains[ti].origin)
