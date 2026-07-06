@@ -17,8 +17,8 @@ Intersections == {{2, 5}}
 
 Phases == {"finding arrangement", "driving trains"}
 
-VARIABLE phase, trains, sensor_values, green_signals
-vars == <<phase, trains, sensor_values, green_signals>>
+VARIABLE phase, trains, green_signals
+vars == <<phase, trains, green_signals>>
 
 IsSafe(mytrains) ==
     \* no two trains on same section:
@@ -42,25 +42,14 @@ FindNeighboursOf(sec, depth) ==
 
 AllTrains ==
     [1..NumTrains -> [position: Sections]]
-    \* all mappings from 1..NumTrains to train records that hold a position and destination which are both a section
-
-AllSensorValues ==
-    [Sections -> BOOLEAN]
-
-IsSensingValid(t, s) == 
-    /\ s \in AllSensorValues
-    /\ \E f \in [DOMAIN t -> Sections] :
-        /\ \A ti \in DOMAIN t : f[ti] \in FindNeighboursOf(t[ti].position, 2)
-        /\ [sec \in Sections |-> \E ti \in DOMAIN t : f[ti] = sec] = s
+    \* all mappings from 1..NumTrains to train records that hold a position which is a section
 
 FindStartingArrangement ==
     /\ phase = "finding arrangement"
     /\ green_signals' = {}
-    /\ \E t \in AllTrains, s \in AllSensorValues:
+    /\ \E t \in AllTrains:
         /\ IsSafe(t)
-        /\ IsSensingValid(t, s)
         /\ trains' = t
-        /\ sensor_values' = s
         /\ phase' = "driving trains"
 
 DriveTrain(ti) ==
@@ -70,36 +59,42 @@ DriveTrain(ti) ==
             /\ <<current, next>> \in green_signals
             /\ trains' = [trains EXCEPT ![ti] = [trains[ti] EXCEPT !.position = next]]
         )
-    /\ UNCHANGED <<phase, green_signals, sensor_values>>
+    /\ UNCHANGED <<phase, green_signals>>
 
-AllowedNeighbourEdges(position) ==
-    {<<a, b>> \in DirectionCorrectedEdges:
-        /\ a = position
-        /\ ~(\E <<x, y>> \in green_signals: y = b)}
-
-\* TODO:
+\* This defines the rules based on which signals are turned green. For this, we only have per-section
+\* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally
+\* or be outdated.
 SignalRules(measurements) ==
-    DirectionCorrectedEdges
+    {}
     \* returns list of green signals
+
+\* based on the current positions of all trains, this returns every set of mappings [Sections -> BOOLEAN]
+\* that can occur according to the implemented error types. in SetSignals we then pick out one of these
+\* possible measurement mappings, and use SignalRules to find signals we can safely turn green.
+AllMeasurableSensorValues ==
+    LET
+        IsValidSensorValues(vals) ==
+            \* is there a mapping that transmutes each trains position to a neighbouring section,
+            \* that corresponds to vals?
+            /\ \E tp \in [DOMAIN trains -> Sections]:
+                \* by tp transmuted positions must still be in the specified radius around the actual position:
+                /\ \A ti \in DOMAIN trains: tp[ti] \in FindNeighboursOf(trains[ti].position, 2)
+                \* create the mapping from Sections -> BOOLEAN based on tp and check if it is vals
+                /\ [s \in Sections |-> \E ti \in DOMAIN trains: tp[ti] = s] = vals
+    IN
+        {s \in [Sections -> BOOLEAN]: IsValidSensorValues(s)}
 
 SetSignals ==
     /\ phase = "driving trains"
-    /\ green_signals' = SignalRules(sensor_values)
-    /\ UNCHANGED <<trains, phase, sensor_values>>
-
-Sense ==
-    /\ phase = "driving trains"
-    /\ \E s \in AllSensorValues:
-        /\ IsSensingValid(trains, s)
-        /\ sensor_values' = s
-    /\ UNCHANGED <<phase, trains, green_signals>>
+    /\ \E sensor_values \in AllMeasurableSensorValues:
+        /\ green_signals' = SignalRules(sensor_values)
+    /\ UNCHANGED <<trains, phase>>
 
 Next ==
-    FindStartingArrangement \/ (\E ti \in DOMAIN trains: DriveTrain(ti)) \/ SetSignals \/ Sense
+    FindStartingArrangement \/ (\E ti \in DOMAIN trains: DriveTrain(ti)) \/ SetSignals
    
 Init ==
     /\ phase = "finding arrangement"
-    /\ sensor_values = [sec \in Sections |-> FALSE]
     /\ trains = <<>>
     /\ green_signals = {}
 
@@ -107,7 +102,6 @@ Fairness ==
     \* i would like to use DOMAIN trains here as well to keep flexibility but tla+ doesnt allow it
     /\ \A ti \in 1..NumTrains: WF_vars(DriveTrain(ti))
     /\ WF_vars(SetSignals)
-    /\ WF_vars(Sense)
 
 Spec ==
     Init /\ [][Next]_vars /\ Fairness
@@ -118,7 +112,6 @@ IsSafeInvariant ==
 TypeInvariant ==
     /\ phase \in Phases
     /\ Len(trains) = 0 \/ trains \in AllTrains
-    /\ sensor_values \in AllSensorValues
     /\ green_signals \subseteq DirectionCorrectedEdges
 
 =============================================================================
