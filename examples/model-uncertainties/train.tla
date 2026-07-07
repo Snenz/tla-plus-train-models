@@ -13,9 +13,14 @@ CONSTANT NumTrains
 CONSTANT MaxLongitudinalShift \* worst-case longitudinal error
 
 \* Kreuzung (DirectedGraph = FALSE)
-Sections == {1, 2, 3, 4, 5, 6}
-Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
-Intersections == {{2, 5}}
+\* Sections == {1, 2, 3, 4, 5, 6}
+\* Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
+\* Intersections == {{2, 5}}
+
+\* Teststrecke mit Ausweichgleis, Kreis und Kreuzung (DirectedGraph = FALSE):
+Sections == {1, 2, 3, 4, 5, 6, 7, 8}
+Edges == {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>, <<4, 5>>, <<5, 8>>, <<8, 6>>, <<6, 7>>, <<1, 7>>}
+Intersections == {{5, 6}}
 
 Phases == {"finding arrangement", "driving trains"}
 
@@ -69,16 +74,36 @@ DriveTrain(ti) ==
         )
     /\ UNCHANGED <<phase, green_signals>>
 
-\* This defines the rules based on which signals are turned green. For this, we only have per-section
-\* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally.
-SignalRules(measurements) ==
-    \* TODO: finish this implementation of the stupidist rule for MaxLongitudinalShift = 0
+\* Most obvious, simple rule:
+GreenSignalsOnlyIntoUnsensedSections(measurements) ==
     {<<a, b>> \in DirectionCorrectedEdges:
         /\ measurements[a] /\ ~measurements[b] \* turn signals from a → b green if a is occupied and b is not
         /\ ~\E int \in Intersections: \* signal only green if it doesnt point into an occupied intersection
             /\ b \in int
             /\ \E s \in int: measurements[s]
     }
+
+GreenSignalsOnlyIntoSafeZones(measurements) ==
+    LET
+        measured_sections == {s \in Sections: measurements[s] = TRUE}
+        \* train_areas holds a set of sections that each measured_section blocks
+        IncludeIntersectionsInNeighbours(neighs) == \* we also want to block any intersection that is part of an area
+            neighs \union UNION {int \in Intersections: (\E n \in neighs: n \in int)}
+        train_areas == {IncludeIntersectionsInNeighbours(FindNeighboursOf(s, 1)): s \in measured_sections}
+        \* sections where multiple train_areas intersect are unsafe:
+        unsafe_sections == {s \in Sections: Cardinality({ta \in train_areas: s \in ta}) > 1}
+    IN 
+        {<<a, b>> \in DirectionCorrectedEdges:
+            /\ \E ta \in train_areas:
+                /\ a \in ta /\ b \in ta \* free to move within one train_area
+            /\ b \notin unsafe_sections
+        }
+
+\* This defines the rules based on which signals are turned green. For this, we only have per-section
+\* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally.
+SignalRules(measurements) ==
+    \* GreenSignalsOnlyIntoUnsensedSections(measurements)
+    GreenSignalsOnlyIntoSafeZones(measurements)
     \* returns list of green signals
 
 \* based on the current positions of all trains, this returns every set of mappings [Sections -> BOOLEAN]
