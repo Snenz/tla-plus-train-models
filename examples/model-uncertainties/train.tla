@@ -18,9 +18,14 @@ CONSTANT MaxLongitudinalShift \* worst-case longitudinal error
 \* Intersections == {{2, 5}}
 
 \* Teststrecke mit Ausweichgleis, Kreis und Kreuzung (DirectedGraph = FALSE):
-Sections == {1, 2, 3, 4, 5, 6, 7, 8}
-Edges == {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>, <<4, 5>>, <<5, 8>>, <<8, 6>>, <<6, 7>>, <<1, 7>>}
-Intersections == {{5, 6}}
+\* Sections == {1, 2, 3, 4, 5, 6, 7, 8}
+\* Edges == {<<1, 2>>, <<1, 3>>, <<2, 4>>, <<3, 4>>, <<4, 5>>, <<5, 8>>, <<8, 6>>, <<6, 7>>, <<1, 7>>}
+\* Intersections == {{5, 6}}
+
+\* gerade Strecke (DirectedGraph = FALSE)
+Sections == {1, 2, 3, 4}
+Edges == {<<1, 2>>, <<2, 3>>, <<3, 4>>}
+Intersections == {}
 
 Phases == {"finding arrangement", "driving trains"}
 
@@ -72,16 +77,51 @@ DriveTrain(ti) ==
             /\ <<current, next>> \in green_signals
             /\ trains' = [trains EXCEPT ![ti] = [trains[ti] EXCEPT !.position = next]]
         )
-    /\ UNCHANGED <<phase, green_signals>>
+    /\ UNCHANGED <<phase, green_signals>>          
+
+GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements) ==
+    LET
+        green_candidates == \* all edges that point from an occupied section into a free section, respecting intersections
+            {<<a, b>> \in DirectionCorrectedEdges:
+                /\ measurements[a] /\ ~measurements[b]
+                /\ ~\E int \in Intersections:
+                    /\ b \in int
+                    /\ \E s \in int: measurements[s]
+            }
+
+        RECURSIVE filter_edges(_, _)
+            filter_edges(candidates, filtered) ==
+                LET
+                    is_target_safe(t) ==
+                        /\ ~\E <<x, y>> \in filtered: t = y
+                        /\ ~\E int \in Intersections:
+                            /\ t \in int
+                            /\ \E <<x, y>> \in filtered: y \in int
+                    safe_candidate_exists ==
+                        \E <<a, b>> \in candidates: is_target_safe(b)
+                    safe_candidate == CHOOSE <<a, b>> \in candidates: is_target_safe(b)
+                IN
+                    IF safe_candidate_exists THEN
+                        filter_edges(candidates \ {safe_candidate}, filtered \cup {safe_candidate})
+                    ELSE filtered
+
+    IN filter_edges(green_candidates, {})
 
 \* Most obvious, simple rule:
 GreenSignalsOnlyIntoUnsensedSections(measurements) ==
-    {<<a, b>> \in DirectionCorrectedEdges:
-        /\ measurements[a] /\ ~measurements[b] \* turn signals from a → b green if a is occupied and b is not
-        /\ ~\E int \in Intersections: \* signal only green if it doesnt point into an occupied intersection
-            /\ b \in int
-            /\ \E s \in int: measurements[s]
-    }
+    LET
+        green_candidates == \* all edges that point from an occupied section into a free section, respecting intersections
+            {<<a, b>> \in DirectionCorrectedEdges:
+                /\ measurements[a] /\ ~measurements[b]
+                /\ ~\E int \in Intersections:
+                    /\ b \in int
+                    /\ \E s \in int: measurements[s]
+            }
+        problematic_candidates ==
+            {<<a, b>> \in green_candidates:
+                \E <<x, y>> \in green_candidates \ {<<a, b>>}: b = y}
+    IN 
+        green_candidates \ problematic_candidates
 
 GreenSignalsOnlyIntoSafeZones(measurements) ==
     LET
@@ -102,8 +142,9 @@ GreenSignalsOnlyIntoSafeZones(measurements) ==
 \* This defines the rules based on which signals are turned green. For this, we only have per-section
 \* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally.
 SignalRules(measurements) ==
+    GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements)
     \* GreenSignalsOnlyIntoUnsensedSections(measurements)
-    GreenSignalsOnlyIntoSafeZones(measurements)
+    \* GreenSignalsOnlyIntoSafeZones(measurements)
     \* returns list of green signals
 
 \* based on the current positions of all trains, this returns every set of mappings [Sections -> BOOLEAN]
