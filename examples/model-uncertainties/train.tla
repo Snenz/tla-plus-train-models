@@ -14,9 +14,9 @@ CONSTANT MaxLongitudinalShift \* worst-case longitudinal error
 CONSTANT MinStartingDistance \* the minimal amount of sections between trains for all starting arrangements
 
 \* Kreuzung (DirectedGraph = FALSE)
-\* Sections == {1, 2, 3, 4, 5, 6}
-\* Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
-\* Intersections == {{2, 5}}
+Sections == {1, 2, 3, 4, 5, 6}
+Edges == {<<1, 2>>, <<2, 3>>, <<4, 5>>, <<5, 6>>}
+Intersections == {{2, 5}}
 
 \* Teststrecke mit Ausweichgleis, Kreis und Kreuzung (DirectedGraph = FALSE):
 \* Sections == {1, 2, 3, 4, 5, 6, 7, 8}
@@ -24,9 +24,9 @@ CONSTANT MinStartingDistance \* the minimal amount of sections between trains fo
 \* Intersections == {{5, 6}}
 
 \* gerade Strecke (DirectedGraph = FALSE)
-Sections == {1, 2, 3, 4}
-Edges == {<<1, 2>>, <<2, 3>>, <<3, 4>>}
-Intersections == {}
+\* Sections == {1, 2, 3, 4, 5, 6, 7, 8}
+\* Edges == {<<1, 2>>, <<2, 3>>, <<3, 4>>, <<4, 5>>, <<5, 6>>, <<6, 7>>, <<7, 8>>}
+\* Intersections == {}
 
 Phases == {"finding arrangement", "driving trains"}
 
@@ -127,28 +127,26 @@ GreenSignalsOnlyIntoUnsensedSections(measurements) ==
     IN 
         green_candidates \ problematic_candidates
 
-GreenSignalsOnlyIntoSafeZones(measurements) ==
-    LET
-        measured_sections == {s \in Sections: measurements[s] = TRUE}
-        \* train_areas holds a set of sections that each measured_section blocks
-        IncludeIntersectionsInNeighbours(neighs) == \* we also want to block any intersection that is part of an area
-            neighs \union UNION {int \in Intersections: (\E n \in neighs: n \in int)}
-        train_areas == {IncludeIntersectionsInNeighbours(FindNeighboursOf(s, 1)): s \in measured_sections}
-        \* sections where multiple train_areas intersect are unsafe:
-        unsafe_sections == {s \in Sections: Cardinality({ta \in train_areas: s \in ta}) > 1}
-    IN 
-        {<<a, b>> \in DirectionCorrectedEdges:
-            /\ \E ta \in train_areas:
-                /\ a \in ta /\ b \in ta \* free to move within one train_area
-            /\ b \notin unsafe_sections
-        }
-
 \* This defines the rules based on which signals are turned green. For this, we only have per-section
 \* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally.
 SignalRules(measurements) ==
     \* GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements)
     \* GreenSignalsOnlyIntoUnsensedSections(measurements)
-    GreenSignalsOnlyIntoSafeZones(measurements)
+    
+    \* make this safe with sensor uncertainties:
+    \* for each section, check if one of its neighbours is being measured
+    \* → this section is now treated as if it were measured itself
+    
+    LET
+        extension_radius == 1
+
+        extended_measured_sections ==
+            {s \in Sections: \E ns \in FindNeighboursOf(s, extension_radius): measurements[ns] = TRUE}
+                
+        extended_measurements == 
+            [s \in Sections |-> s \in extended_measured_sections]
+    
+    IN GreenSignalsOnlyIntoUnsensedSectionsRecursively(extended_measurements)
     \* returns list of green signals
 
 \* based on the current positions of all trains, this returns every set of mappings [Sections -> BOOLEAN]
