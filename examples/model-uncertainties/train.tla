@@ -99,10 +99,10 @@ GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements) ==
                             /\ \E <<x, y>> \in filtered: y \in int
                     safe_candidate_exists ==
                         \E <<a, b>> \in candidates: is_target_safe(b)
-                    safe_candidate == CHOOSE <<a, b>> \in candidates: is_target_safe(b)
                 IN
                     IF safe_candidate_exists THEN
-                        filter_edges(candidates \ {safe_candidate}, filtered \cup {safe_candidate})
+                        LET safe_candidate == CHOOSE <<a, b>> \in candidates: is_target_safe(b)
+                        IN filter_edges(candidates \ {safe_candidate}, filtered \cup {safe_candidate})
                     ELSE filtered
 
     IN filter_edges(green_candidates, {})
