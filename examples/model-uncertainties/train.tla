@@ -11,6 +11,7 @@ CONSTANT DirectedGraph
 
 CONSTANT NumTrains
 CONSTANT MaxLongitudinalShift \* worst-case longitudinal error
+CONSTANT MinStartingDistance \* the minimal amount of sections between trains for all starting arrangements
 
 \* Kreuzung (DirectedGraph = FALSE)
 \* Sections == {1, 2, 3, 4, 5, 6}
@@ -65,7 +66,10 @@ FindStartingArrangement ==
     /\ phase = "finding arrangement"
     /\ green_signals' = {}
     /\ \E t \in AllTrains:
-        \A ti \in TrainIDs: t[ti].position = t[ti].origin
+        \A ti \in TrainIDs: 
+            /\ t[ti].position = t[ti].origin
+            \* MinStartingDistance: for each train, there may not be another train that is within MinStartingDistance
+            /\ ~\E tj \in TrainIDs \ {ti}: t[tj].position \in FindNeighboursOf(t[ti].position, MinStartingDistance)
         /\ IsSafe(t)
         /\ trains' = t
         /\ phase' = "driving trains"
@@ -142,9 +146,9 @@ GreenSignalsOnlyIntoSafeZones(measurements) ==
 \* This defines the rules based on which signals are turned green. For this, we only have per-section
 \* measurements available [Sections -> BOOLEAN], but these measurements might be shifted longitudinally.
 SignalRules(measurements) ==
-    GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements)
+    \* GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements)
     \* GreenSignalsOnlyIntoUnsensedSections(measurements)
-    \* GreenSignalsOnlyIntoSafeZones(measurements)
+    GreenSignalsOnlyIntoSafeZones(measurements)
     \* returns list of green signals
 
 \* based on the current positions of all trains, this returns every set of mappings [Sections -> BOOLEAN]
