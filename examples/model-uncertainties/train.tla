@@ -59,15 +59,14 @@ TrainIDs ==
     1..NumTrains
 
 AllTrains ==
-    [TrainIDs -> [position: Sections, origin: Sections]]
-    \* all mappings from TrainIDs to train records that hold a position and origin which are both a section
+    [TrainIDs -> [position: Sections]]
+    \* all mappings from TrainIDs to train records that hold a position which is a section
 
 FindStartingArrangement ==
     /\ phase = "finding arrangement"
     /\ green_signals' = {}
     /\ \E t \in AllTrains:
         \A ti \in TrainIDs: 
-            /\ t[ti].position = t[ti].origin
             \* MinStartingDistance: for each train, there may not be another train that is within MinStartingDistance
             /\ ~\E tj \in TrainIDs \ {ti}: t[tj].position \in FindNeighboursOf(t[ti].position, MinStartingDistance)
         /\ IsSafe(t)
@@ -206,6 +205,9 @@ TypeInvariant ==
 \* TODO: add liveness property that somehow checks if every train can reach every section
 NoTrainStuck ==
     \* we need to include the phase here because otherwise we try to access trains before populating it
-    \A ti \in TrainIDs: <>(phase = "driving trains" /\ trains[ti].position /= trains[ti].origin)
+    \A t \in TrainIDs :
+        \A s \in Sections :
+            (phase = "driving trains" /\ trains[t].position = s)
+                ~> (phase /= "driving trains" \/ trains[t].position /= s)
 
 =============================================================================
