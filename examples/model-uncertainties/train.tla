@@ -214,7 +214,13 @@ TypeInvariant ==
     /\ Len(trains) = 0 \/ trains \in AllTrains
     /\ green_signals \subseteq DirectionCorrectedEdges
 
-\* TODO: add liveness property that somehow checks if every train can reach every section
+\* TODO: testing
+AllReachableSectionsVisited ==
+    \A t \in TrainIDs:
+        /\ \A s \in Sections:
+            (phase = "driving trains" /\ s \in FindNeighboursOf(trains[t].position, 1000000))
+                ~> (phase /= "driving trains" \/ trains[t].position = s)
+
 NoTrainStuck ==
     \* we need to include the phase here because otherwise we try to access trains before populating it
     \A t \in TrainIDs :
