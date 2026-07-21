@@ -73,14 +73,17 @@ FindStartingArrangement ==
         /\ trains' = t
         /\ phase' = "driving trains"
 
-DriveTrain(ti) ==
-    /\ phase = "driving trains"
-    /\ \E <<current, next>> \in DirectionCorrectedEdges: (
-            /\ trains[ti].position = current
-            /\ <<current, next>> \in green_signals
-            /\ trains' = [trains EXCEPT ![ti] = [trains[ti] EXCEPT !.position = next]]
-        )
-    /\ UNCHANGED <<phase, green_signals>>          
+DriveTrain(ti, next_section) ==
+    LET
+        edge == <<trains[ti].position, next_section>>
+    IN
+        /\ phase = "driving trains"
+        \* checking if edge is valid shouldnt be necessary beause we check green_signals already,
+        \* which is only a subset of DirectionCorrectedEdges anyways. I guess its good practice though
+        /\ edge \in DirectionCorrectedEdges
+        /\ edge \in green_signals
+        /\ trains' = [trains EXCEPT ![ti] = [trains[ti] EXCEPT !.position = next_section]]
+        /\ UNCHANGED <<phase, green_signals>>
 
 GreenSignalsOnlyIntoUnsensedSectionsRecursively(measurements) ==
     LET
@@ -171,7 +174,13 @@ SetSignals ==
     /\ UNCHANGED <<trains, phase>>
 
 Next ==
-    FindStartingArrangement \/ (\E ti \in TrainIDs: DriveTrain(ti)) \/ SetSignals
+    \/ FindStartingArrangement
+    \/ \E ti \in TrainIDs:
+        \* instead of checking for an element of Sections, we could use FindNeighboursOf, but that is probably
+        \* not faster anyways as FindNeighboursOf goes over all Sections either way
+        /\ \E n \in Sections:
+            /\ DriveTrain(ti, n)
+    \/ SetSignals
    
 Init ==
     /\ phase = "finding arrangement"
@@ -186,7 +195,10 @@ Fairness ==
     \* DriveTrain should be SF, because the conditions on which it fires can fluctuate alot based on
     \* the surrounding rail network. with WF, the conditions must stabilize before firing, while
     \* SF guarantees the action fires eventually if conditions are met even once
-    /\ \A ti \in TrainIDs: SF_vars(DriveTrain(ti))
+    \* we now also enforce fairness over all the sections, such that if they can be visited, they will
+    /\ \A ti \in TrainIDs:
+        /\ \A n \in Sections:
+            /\ SF_vars(DriveTrain(ti, n))
     \* for SetSignals, SF or WF will also produce identical behaviour, because once phase is "driving
     \* trains", preconditions will not change again.
     /\ WF_vars(SetSignals)
