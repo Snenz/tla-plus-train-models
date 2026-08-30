@@ -93,23 +93,21 @@ AllMeasurableSensorValues ==
 
 SetSignals ==
     /\ \E sensor_values \in AllMeasurableSensorValues:
-        /\ green_signals' = SignalRules(sensor_values)
+        green_signals' = SignalRules(sensor_values)
     /\ UNCHANGED <<trains>>
 
 Next ==
     \/ \E ti \in TrainIDs:
-        \* instead of checking for an element of Sections, we could use FindNeighboursOf, but that is probably
-        \* not faster anyways as FindNeighboursOf goes over all Sections either way
-        /\ \E n \in Sections:
-            /\ DriveTrain(ti, n)
+        \E n \in Sections: DriveTrain(ti, n)
     \/ SetSignals
    
 Init ==
     /\ green_signals = {}
     /\ \E t \in AllTrains:
-        \A ti \in TrainIDs: 
+        /\ \A ti \in TrainIDs: 
             \* MinStartingDistance: for each train, there may not be another train that is within MinStartingDistance
-            /\ ~\E tj \in TrainIDs \ {ti}: t[tj].position \in FindNeighboursOf(t[ti].position, MinStartingDistance)
+            ~\E tj \in TrainIDs \ {ti}:
+                t[tj].position \in FindNeighboursOf(t[ti].position, MinStartingDistance)
         /\ IsSafe(t)
         /\ trains = t
 
@@ -120,8 +118,7 @@ Fairness ==
     \* SF guarantees the action fires eventually if conditions are met even once
     \* we now also enforce fairness over all the sections, such that if they can be visited, they will
     /\ \A ti \in TrainIDs:
-        /\ \A n \in Sections:
-            /\ SF_vars(DriveTrain(ti, n))
+        \A n \in Sections: SF_vars(DriveTrain(ti, n))
     \* for SetSignals, SF or WF will also produce identical behaviour, because there are no preconditions
     \* that might change again.
     /\ WF_vars(SetSignals)
@@ -139,7 +136,7 @@ TypeInvariant ==
 \* TODO: testing
 AllReachableSectionsVisited ==
     \A t \in TrainIDs:
-        /\ \A s \in Sections:
+        \A s \in Sections:
             s \in FindNeighboursOf(trains[t].position, 1000000) ~> trains[t].position = s
 
 NoTrainStuck ==
