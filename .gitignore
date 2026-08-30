@@ -1,4 +1,4 @@
 .vscode/
 *.out
 *.tlc
-/examples/*/states
+/*/states
